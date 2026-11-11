@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Positions, Please!</title>
+<meta name="description" content="Cadance brings the studio to you. Strike the pose, find your Cadance.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+<style>
+/* neon on black: ice cyan to fire orange, deliberately unlike Pirouette's purple and gold */
+:root{
+  --plum:#05060c; --plum2:#11142a; --violet:#3ff3ff; --gold:#3ff3ff;
+  --ice:#3ff3ff; --fire:#ff6a1f; --pink:#ff2e88; --ink:#fff; --muted:#93a0c8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--plum);color:var(--ink);font-family:Outfit,system-ui,sans-serif;overflow:hidden}
+canvas#stage{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block}
+video#cam{display:none}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px 16px calc(24px + env(safe-area-inset-bottom));text-align:center;overflow-y:auto;
+  background:radial-gradient(70% 50% at 15% 0%,rgba(63,243,255,.22),transparent 70%),
+    radial-gradient(70% 50% at 90% 100%,rgba(255,46,136,.2),transparent 70%),rgba(5,6,12,.9)}
+.screen[hidden]{display:none}
+.screen::before{content:'';margin-top:auto}.screen::after{content:'';margin-bottom:auto}
+.screen{justify-content:flex-start}
+.title{font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(38px,11vw,84px);line-height:1;letter-spacing:-.02em;margin:0 0 14px;
+  background:linear-gradient(100deg,var(--ice) 10%,#fff 45%,var(--pink) 90%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 22px rgba(63,243,255,.35))}
+.tag{font-size:clamp(18px,4.8vw,26px);font-weight:600;margin:0 0 28px;color:#e6ecff}
+.btn{appearance:none;border:0;border-radius:999px;padding:16px 30px;font:800 18px Outfit,sans-serif;cursor:pointer;
+  background:rgba(255,255,255,.12);color:#fff;text-decoration:none;display:inline-block;margin:6px}
+.btn.primary{background:linear-gradient(135deg,var(--fire),var(--pink));box-shadow:0 0 28px rgba(255,46,136,.45)}
+.btn:disabled{opacity:.4;cursor:default}
+.link{background:none;border:0;color:var(--muted);font:600 15px Outfit,sans-serif;text-decoration:underline;cursor:pointer;margin-top:14px}
+.privacy{max-width:420px;color:var(--muted);font-size:14px;margin:22px auto 0}
+.brand{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));font-weight:800;letter-spacing:.2em;font-size:12px;color:var(--muted)}
+h2{font-size:28px;margin:0 0 14px}
+.q{margin:10px 0;max-width:560px;width:100%}
+.q p{margin:0 0 8px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chip{border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:9px 15px;font:600 15px Outfit,sans-serif;cursor:pointer}
+.chip.on{border-color:var(--ice);background:rgba(63,243,255,.14);box-shadow:0 0 14px rgba(63,243,255,.3)}
+.chip small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.chip.suggest:not(.on){border-style:dashed;border-color:var(--gold)}
+#hud{position:fixed;inset:0;pointer-events:none}
+#hud[hidden]{display:none}
+.hud-top{position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:18px;text-shadow:0 2px 8px #000}
+.hud-top button{pointer-events:auto;background:rgba(0,0,0,.35);border:0;border-radius:999px;color:#fff;font-size:18px;width:40px;height:40px;cursor:pointer}
+#timer{position:absolute;top:calc(58px + env(safe-area-inset-top));left:12px;right:12px;height:8px;border-radius:9px;background:rgba(255,255,255,.18);overflow:hidden}
+#timer i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--ice),#fff);transform-origin:left}
+#thermo{position:absolute;right:14px;top:30%;bottom:22%;width:20px;border-radius:12px;background:rgba(255,255,255,.15);overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.3)}
+#thermo i{position:absolute;left:0;right:0;bottom:0;height:0;border-radius:12px}
+#hold{position:absolute;left:50%;bottom:calc(66px + env(safe-area-inset-bottom));transform:translateX(-50%);width:78px;height:78px;border-radius:50%;
+  background:conic-gradient(var(--gold) calc(var(--p,0)*1turn),rgba(255,255,255,.15) 0);display:grid;place-items:center;opacity:0;transition:opacity .2s}
+#hold span{width:62px;height:62px;border-radius:50%;background:rgba(5,6,12,.85);display:grid;place-items:center;font-weight:800;font-size:13px}
+#hint{position:absolute;left:16px;right:16px;bottom:calc(150px + env(safe-area-inset-bottom));font-weight:600;font-size:16px;text-shadow:0 2px 8px #000}
+#calib{position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));margin:auto;max-width:460px;background:rgba(17,20,42,.92);border-radius:20px;padding:18px;text-align:center}
+#calib[hidden]{display:none}
+#calib p{margin:0 0 10px}
+.bar{height:8px;border-radius:8px;background:rgba(255,255,255,.15);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--gold)}
+.end-title{font-family:Unbounded,sans-serif;font-weight:800;font-size:clamp(26px,7.5vw,50px);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px}
+.end-title em{font-style:normal;color:var(--ice);text-shadow:0 0 18px rgba(63,243,255,.5)}
+.total{font-size:44px;font-weight:800}
+.total small{font-size:18px;color:var(--muted)}
+#e-stats{color:var(--muted);margin-bottom:10px}
+#e-note{max-width:440px;margin:6px auto 4px}
+#moments{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;width:100%;max-width:560px;margin:8px 0}
+.moment{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/4;background:#000;border:2px solid rgba(255,255,255,.2);cursor:pointer;padding:0}
+.moment img,.moment video{width:100%;height:100%;object-fit:cover;display:block}
+.moment b{position:absolute;left:6px;top:6px;font-size:11px;background:rgba(0,0,0,.6);border-radius:8px;padding:3px 7px}
+.moment.hot{border-color:var(--fire)} .moment.cold{border-color:var(--ice)}
+#share-note{color:var(--muted);font-size:14px;max-width:420px}
+.modal{position:fixed;inset:0;background:rgba(10,4,20,.8);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modal[hidden]{display:none}
+.sheet{background:var(--plum2);border-radius:22px;padding:20px;max-width:420px;width:100%;text-align:center;max-height:92vh;overflow:auto}
+.sheet h3{margin:0 0 10px}
+.sheet input[type=text],.sheet input:not([type]){font:600 22px Outfit,sans-serif;text-align:center;width:140px;padding:10px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(0,0,0,.25);color:#fff}
+.sheet label{display:block;text-align:left;margin:8px 0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06);cursor:pointer}
+.sheet .small{font-size:13px;color:var(--muted)}
+#v-media img,#v-media video{max-width:100%;max-height:60vh;border-radius:14px;display:block;margin:0 auto 12px}
+.err{color:#ff9b9b;min-height:20px;margin:6px 0}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<video id="cam" playsinline muted></video>
+
+<div id="hud" hidden>
+  <div class="hud-top"><button id="b-mute" aria-label="Music on or off">🎵</button><span id="h-count"></span><span id="h-score">0</span></div>
+  <div id="timer"><i></i></div>
+  <div id="thermo"><i></i></div>
+  <div id="hold"><span>Hold it!</span></div>
+  <div id="hint"></div>
+</div>
+
+<div id="calib" hidden>
+  <p><b>Prop up your phone and step back</b><br>until we can see you from head to toe.</p>
+  <div class="bar"><i id="calib-bar"></i></div>
+  <button id="b-skip" class="link" hidden>Start anyway</button>
+</div>
+
+<section class="screen" id="s-start">
+  <h1 class="title">Positions,<br>Please!</h1>
+  <p class="tag">Cadance brings the studio to you.</p>
+  <button id="b-play" class="btn primary">Let's dance</button>
+  <p class="privacy">Your camera stays on your device. Nothing is recorded or sent anywhere unless you choose to share.</p>
+  <button id="b-parent" class="link">Parent settings</button>
+  <div class="brand">CADANCE ACADEMY</div>
+</section>
+
+<section class="screen" id="s-setup" hidden>
+  <h2>Who's dancing?</h2>
+  <div class="q"><p>How old are you?</p><div class="chips" data-key="age">
+    <button class="chip" data-v="4-7">4 to 7</button><button class="chip" data-v="8-12">8 to 12</button>
+    <button class="chip" data-v="13-17">13 to 17</button><button class="chip" data-v="18+">18 and up</button></div></div>
+  <div class="q"><p>Are you a Cadance student?</p><div class="chips" data-key="student">
+    <button class="chip" data-v="yes">Yes</button><button class="chip" data-v="no">Not yet</button></div></div>
+  <div class="q" id="q-level" hidden><p>What's your ballet class at Cadance?</p><div class="chips" data-key="level"></div></div>
+  <div class="q" id="q-ballet" hidden><p>Do you already do ballet?</p><div class="chips" data-key="ballet">
+    <button class="chip" data-v="none">Not yet</button><button class="chip" data-v="beginner">Beginner</button>
+    <button class="chip" data-v="intermediate">Intermediate</button><button class="chip" data-v="advanced">Advanced</button></div></div>
+  <div class="q"><p>Pick your challenge</p><div class="chips" data-key="difficulty">
+    <button class="chip" data-v="easy">Easy<small>more time, softer judging</small></button>
+    <button class="chip" data-v="medium">Medium<small>a real class feel</small></button>
+    <button class="chip" data-v="hard">Hard<small>exam ready</small></button>
+    <button class="chip" data-v="expert">Expert<small>big extensions, long holds</small></button>
+    <button class="chip" data-v="master">Master<small>grand jeté in the air, needs room</small></button></div></div>
+  <div class="q"><p>Pick your outline</p><div class="chips" data-key="sex">
+    <button class="chip" data-v="f">Ballerina</button><button class="chip" data-v="m">Male dancer</button></div></div>
+  <div class="q"><p>Pick your music</p><div class="chips" data-key="music">
+    <button class="chip" data-v="nutcracker">Nutcracker Trap<small>Tchaikovsky with 808s</small></button>
+    <button class="chip" data-v="royal">Royal Excitement<small>pop strings, no Nutcracker</small></button>
+    <button class="chip" data-v="none">No music</button></div></div>
+  <div class="q"><p>How are you playing?</p><div class="chips" data-key="cam">
+    <button class="chip" data-v="selfie">Phone propped up<small>front camera, like a mirror</small></button>
+    <button class="chip" data-v="back">A friend films me<small>back camera, your room in AR</small></button></div>
+    <p id="cam-tip" class="privacy" hidden>The phone will call out each pose and beep faster as you get closer. Tip: mirror this phone to a TV with AirPlay or Chromecast so the dancer can see the outline too.</p></div>
+  <button id="b-start" class="btn primary" disabled>Start</button>
+  <button id="b-back" class="link">Back</button>
+</section>
+
+<section class="screen" id="s-end" hidden>
+  <h2 class="end-title">Strike the pose.<br><em>Find your Cadance.</em></h2>
+  <div class="total"><span id="e-score">0</span> <small>points</small></div>
+  <div id="e-stats"></div>
+  <p id="e-note"></p>
+  <a id="b-cta" class="btn primary" target="_blank" rel="noopener"></a>
+  <div id="moments"></div>
+  <p id="share-note"></p>
+  <button id="b-again" class="btn">Play again</button>
+  <button id="b-home" class="link">Home</button>
+</section>
+
+<div class="modal" id="viewer" hidden><div class="sheet">
+  <div id="v-media"></div>
+  <div id="v-actions"><button id="v-share" class="btn primary">Share</button><button id="v-save" class="btn">Save</button></div>
+  <p id="v-note" class="small"></p>
+  <button id="v-close" class="link">Close</button>
+</div></div>
+
+<div class="modal" id="pgate" hidden><div class="sheet">
+  <h3>For parents</h3>
+  <div id="pg-check">
+    <p id="pg-q"></p>
+    <input id="pg-a" inputmode="numeric" autocomplete="off">
+    <p class="err" id="pg-err"></p>
+    <button id="pg-go" class="btn primary">Continue</button>
+  </div>
+  <div id="pg-set" hidden>
+    <p class="small">Sharing lets your dancer send a photo or short clip from the game to an app you pick, like Instagram or Messages. Nothing is ever sent to Cadance.</p>
+    <label><input type="radio" name="pgs" value="allow"> Allow sharing on this device</label>
+    <label><input type="radio" name="pgs" value="deny"> Don't allow sharing</label>
+    <p class="small">Optional: set a 4 digit PIN so only you can change this.</p>
+    <input id="pg-pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
+    <p class="err" id="pg-err2"></p>
+    <button id="pg-save" class="btn primary">Save</button>
+  </div>
+  <button id="pg-close" class="link">Close</button>
+</div></div>
+
+<script type="module">
+/* ---------- settings Paul may change ---------- */
+const CONFIG = {
+  trialUrl: 'https://cadanceacademy.ca/trial/ballet?utm_source=positions-please&utm_medium=game',
+  friendUrl: 'https://cadanceacademy.ca/bring-a-friend?utm_source=positions-please&utm_medium=game',
+  handle: '@cadanceacademy',
+  hashtag: '#PositionsPlease',
+  posesPerRound: 6,
+  // licensed tracks from Pixabay (free for games and social, no credit required)
+  tracks: {
+    nutcracker: {file:'music-nutcracker.m4a', credit:'"Nutcracker" by Colt Fingaz (Pixabay)'},
+    royal:      {file:'music-royal.m4a', credit:'"Royal Excitement" by Sonican (Pixabay)'},
+  },
+  musicVolume: 0.55,
+};
+const CADANCE_LEVELS = ['Little Stars','Pre-Primary','Primary','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Advanced','Pointe'];
+const LEVELS = {
+  easy:   {tol:28, hold:0.7, time:8, pass:0.70, perfect:0.88},
+  medium: {tol:20, hold:1.0, time:6, pass:0.75, perfect:0.90},
+  hard:   {tol:13, hold:1.3, time:5, pass:0.80, perfect:0.92},
+  expert: {tol:11, hold:1.8, time:6, pass:0.82, perfect:0.93},
+  master: {tol:11, hold:1.8, time:6, pass:0.82, perfect:0.93, leapTol:20, leapPass:0.70, leapPerfect:0.85, leapTime:12},
+};
+const ADV_PER_ROUND = {easy:0, medium:0, hard:2, expert:4, master:3};
+// Master only: leap through the outline and hit the shape while both feet are off the floor
+const LEAP = {name:'Grand Jeté', cue:'Run and leap across! Hit the splits in the air', g:'leap', leap:true, a:[-95,-95,120,115,-100,-100,95,95]};
+/* angles in degrees, screen view: 0 points down, 90 points right, 180 up, -90 left.
+   order: left upper arm, left forearm, right upper arm, right forearm, left thigh, left shin, right thigh, right shin */
+const POSES = [
+  {name:'Fifth Position Arms', cue:'Arms up in a round oval', g:'ballet', a:[-155,125,155,-125,-3,-2,3,2]},
+  {name:'Second Position', cue:'Arms out to the sides, feet apart', g:'ballet', a:[-80,-85,80,85,-16,-12,16,12]},
+  {name:'Passé', cue:'Arms up, lift one knee, toe to your other knee', g:'ballet', a:[-155,125,155,-125,-2,-2,80,-60]},
+  {name:'Tendu to the Side', cue:'Arms in second, point one foot out', g:'ballet', a:[-80,-85,80,85,-3,-2,25,25]},
+  {name:'Star Freeze', cue:'Arms and legs out wide like a star', g:'fun', a:[-130,-130,130,130,-25,-25,25,25]},
+  {name:'Nutcracker Soldier', cue:'Stand tall and salute!', g:'nut', a:[-8,-5,105,-115,-2,-2,2,2]},
+  {name:'Clara', cue:'Hand on hip, reach up high, point a foot', g:'nut', a:[-45,45,140,150,-2,-2,22,24]},
+  {name:'Sugar Plum Fairy', cue:'Arms up in a V, lift one leg to the side', g:'nut', a:[-150,-155,150,155,-3,-3,45,45]},
+  {name:'Mouse King', cue:'Claws up, knees bent wide!', g:'nut', a:[-90,180,90,180,-40,-5,40,5]},
+  {name:'Snowflake', cue:'One arm high, one arm low, one long line', g:'nut', a:[-45,-45,135,135,-3,-2,3,2]},
+  {name:'Waltz of the Flowers', cue:'One arm curved up high, one out to the side', g:'nut', a:[-80,-85,155,-125,-3,-2,3,2]},
+  // advanced: used on Hard and Expert
+  {name:'Développé à la Seconde', cue:'Arms in second, unfold one leg to hip height', g:'adv', a:[-80,-85,80,85,-3,-2,95,95]},
+  {name:'Grand Battement', cue:'Arms up, kick one leg high to the side and hold it', g:'adv', a:[-155,125,155,-125,-3,-2,135,135]},
+  {name:'Attitude à la Seconde', cue:'One arm up, leg to the side with a lifted bent knee', g:'adv', a:[-80,-85,155,-125,-3,-2,100,150]},
+  {name:'Grand Plié in Second', cue:'Arms up, sink deep with knees wide', g:'adv', a:[-155,125,155,-125,-75,-5,75,5]},
+  {name:'Écarté', cue:'One long diagonal from fingertips to toes', g:'adv', a:[-100,-100,145,145,-3,-2,115,115]},
+  {name:'Y Balance', cue:'Hold your ankle up beside your head', g:'adv', a:[-80,-85,120,-125,-3,-2,165,170]},
+  {name:'Sugar Plum Développé', cue:'Arms in a high V, leg extended at hip height', g:'adv', a:[-150,-155,150,155,-3,-3,100,100]},
+];
+const FINALE = {name:'Ta Da!', cue:'Arms open low and wide, chin up, big smile', g:'fun', a:[-50,-55,50,55,-3,-2,3,2]};
+const NEUTRAL = [-8,-5,8,5,-3,-2,3,2];
+
+/* ---------- storage ---------- */
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem('pp_'+k); return v?JSON.parse(v):d }catch(e){ return d } },
+  set(k,v){ try{ localStorage.setItem('pp_'+k, JSON.stringify(v)) }catch(e){} },
+};
+let profile = store.get('profile', {});
+let parent = store.get('parent', {sharing:null, pin:null});
+
+/* ---------- dom ---------- */
+const $ = id => document.getElementById(id);
+const cv = $('stage'), ctx = cv.getContext('2d');
+const layer = document.createElement('canvas'), lctx = layer.getContext('2d');
+const peakCv = document.createElement('canvas'), peakCtx = peakCv.getContext('2d'); // freeze frame of the best moment in the air
+const video = $('cam');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 1.5);
+  W = Math.round(innerWidth*DPR); H = Math.round(innerHeight*DPR);
+  cv.width=layer.width=W; cv.height=layer.height=H;
+  peakCv.width=W; peakCv.height=H;
+}
+addEventListener('resize', resize); resize();
+function show(id){ ['s-start','s-setup','s-end'].forEach(s=>$(s).hidden = s!==id); }
+
+/* ---------- geometry ---------- */
+const G = {sh:0.5, hip:0.32, torso:1.6, ua:0.95, fa:0.85, th:1.25, sn:1.2, headY:-0.8, headR:0.4};
+const rad = d => d*Math.PI/180;
+let sex = profile.sex || 'f'; // outline style: 'f' ballerina, 'm' male dancer
+function skeleton(a){
+  const sh = sex==='m' ? 0.56 : 0.46, hip = sex==='m' ? 0.3 : 0.34;
+  const P = {ls:[-sh,0], rs:[sh,0], lh:[-hip,G.torso], rh:[hip,G.torso], head:[0,G.headY]};
+  const add=(p,len,ang)=>[p[0]+Math.sin(rad(ang))*len, p[1]+Math.cos(rad(ang))*len];
+  P.le=add(P.ls,G.ua,a[0]); P.lw=add(P.le,G.fa,a[1]);
+  P.re=add(P.rs,G.ua,a[2]); P.rw=add(P.re,G.fa,a[3]);
+  P.lk=add(P.lh,G.th,a[4]); P.la=add(P.lk,G.sn,a[5]);
+  P.rk=add(P.rh,G.th,a[6]); P.ra=add(P.rk,G.sn,a[7]);
+  return P;
+}
+const SEGS = [['ls','le'],['le','lw'],['rs','re'],['re','rw'],['lh','lk'],['lk','la'],['rh','rk'],['rk','ra']];
+// mediapipe index for each joint; person's left shows on screen left because the view is mirrored
+const LM = {ls:11, rs:12, le:13, re:14, lw:15, rw:16, lh:23, rh:24, lk:25, rk:26, la:27, ra:28, head:0};
+function fitTransform(P){
+  let x0=-G.headR, x1=G.headR, y0=G.headY-G.headR, y1=G.headY+G.headR;
+  for(const k in P){ x0=Math.min(x0,P[k][0]); x1=Math.max(x1,P[k][0]); y0=Math.min(y0,P[k][1]); y1=Math.max(y1,P[k][1]); }
+  x0-=0.3; x1+=0.3; y0-=0.2; y1+=0.25;
+  const u = Math.min(H*0.72/(y1-y0), W*0.86/(x1-x0));
+  const ox = W/2 - u*(x0+x1)/2, oy = H*0.54 - u*(y0+y1)/2;
+  return {u, x:v=>ox+u*v, y:v=>oy+u*v};
+}
+/* Dancer silhouette: tapered limbs, pointed feet, shaped torso.
+   Ballerina gets a bun and a pancake tutu; the male dancer gets broader shoulders and stronger limbs. */
+function shapes(P){
+  const M = sex==='m';
+  const R = M ? {ua:[0.17,0.12], fa:[0.12,0.075], th:[0.24,0.15], sn:[0.15,0.08], neck:0.13}
+              : {ua:[0.13,0.095], fa:[0.095,0.06], th:[0.2,0.13], sn:[0.13,0.065], neck:0.1};
+  const along=(a,b,len)=>{ const dx=b[0]-a[0], dy=b[1]-a[1], d=Math.hypot(dx,dy)||1; return [b[0]+dx/d*len, b[1]+dy/d*len]; };
+  const limb=(a,b,r,s)=>({t:'taper', a, b, r1:r[0], r2:r[1], s});
+  const torso = M
+    ? [P.ls,[-0.42,0.75],[-0.33,1.25],[P.lh[0]-0.02,G.torso+0.05],[P.rh[0]+0.02,G.torso+0.05],[0.33,1.25],[0.42,0.75],P.rs,[0.16,-0.08],[-0.16,-0.08]]
+    : [P.ls,[-0.32,0.62],[-0.25,1.0],[P.lh[0]-0.04,G.torso+0.02],[P.rh[0]+0.04,G.torso+0.02],[0.25,1.0],[0.32,0.62],P.rs,[0.13,-0.08],[-0.13,-0.08]];
+  const list = [
+    {t:'ellipse', c:[0,G.headY], rx:M?0.31:0.28, ry:M?0.38:0.36, s:-1},
+    {t:'taper', a:[0,G.headY+0.25], b:[0,0.02], r1:R.neck, r2:R.neck*1.25, s:-1},
+    {t:'blob', p:torso, s:-1},
+    limb(P.ls,P.le,R.ua,0), limb(P.le,P.lw,R.fa,1), {t:'taper', a:P.lw, b:along(P.le,P.lw,0.2), r1:R.fa[1], r2:0.035, s:1},
+    limb(P.rs,P.re,R.ua,2), limb(P.re,P.rw,R.fa,3), {t:'taper', a:P.rw, b:along(P.re,P.rw,0.2), r1:R.fa[1], r2:0.035, s:3},
+    limb(P.lh,P.lk,R.th,4), limb(P.lk,P.la,R.sn,5), {t:'taper', a:P.la, b:along(P.lk,P.la,0.32), r1:R.sn[1], r2:0.03, s:5},
+    limb(P.rh,P.rk,R.th,6), limb(P.rk,P.ra,R.sn,7), {t:'taper', a:P.ra, b:along(P.rk,P.ra,0.32), r1:R.sn[1], r2:0.03, s:7},
+  ];
+  if(!M){
+    list.push({t:'ellipse', c:[0,G.headY-0.38], rx:0.15, ry:0.13, s:-1});          // bun
+    list.push({t:'ellipse', c:[0,G.torso-0.02], rx:0.95, ry:0.16, s:-1});          // tutu
+  }
+  return list;
+}
+function smoothPath(c, pts, T){
+  // closed curve through the midpoints, so corners come out soft and organic
+  const n=pts.length, X=i=>T.x(pts[(i+n)%n][0]), Y=i=>T.y(pts[(i+n)%n][1]);
+  c.moveTo((X(0)+X(1))/2,(Y(0)+Y(1))/2);
+  for(let i=1;i<=n;i++) c.quadraticCurveTo(X(i),Y(i),(X(i)+X(i+1))/2,(Y(i)+Y(i+1))/2);
+  c.closePath();
+}
+function renderShape(c, sh, T, grow){
+  c.beginPath();
+  if(sh.t==='ellipse'){ c.ellipse(T.x(sh.c[0]),T.y(sh.c[1]),sh.rx*T.u+grow,sh.ry*T.u+grow,0,0,Math.PI*2); c.fill(); return; }
+  if(sh.t==='blob'){ smoothPath(c, sh.p, T); c.fill(); if(grow>0){ c.lineWidth=grow*2; c.stroke(); } return; }
+  // taper: two end circles joined by tangent lines
+  const ax=T.x(sh.a[0]), ay=T.y(sh.a[1]), bx=T.x(sh.b[0]), by=T.y(sh.b[1]);
+  const r1=sh.r1*T.u+grow, r2=sh.r2*T.u+grow, dx=bx-ax, dy=by-ay, d=Math.hypot(dx,dy)||1, nx=-dy/d, ny=dx/d;
+  c.moveTo(ax+nx*r1, ay+ny*r1); c.lineTo(bx+nx*r2, by+ny*r2); c.lineTo(bx-nx*r2, by-ny*r2); c.lineTo(ax-nx*r1, ay-ny*r1); c.closePath(); c.fill();
+  c.beginPath(); c.arc(ax,ay,r1,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(bx,by,r2,0,Math.PI*2); c.fill();
+}
+
+/* ---------- colour: ice cold to flaming hot ---------- */
+const STOPS = [[0,[95,190,255]],[0.45,[205,230,255]],[0.7,[255,175,70]],[0.88,[255,100,20]],[1,[255,215,70]]];
+function heatRGB(t){
+  t=Math.max(0,Math.min(1,t));
+  for(let i=1;i<STOPS.length;i++){ if(t<=STOPS[i][0]){ const [a,ca]=STOPS[i-1],[b,cb]=STOPS[i]; const k=(t-a)/(b-a);
+    return ca.map((v,j)=>Math.round(v+(cb[j]-v)*k)); } }
+  return STOPS[STOPS.length-1][1];
+}
+const rgb = (c,a=1)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function drawOutline(P, T, heat, alpha){
+  lctx.clearRect(0,0,W,H); lctx.lineCap=lctx.lineJoin='round';
+  const list = shapes(P), avg = heat.reduce((s,v)=>s+v,0)/heat.length;
+  const edge = Math.max(2.5, T.u*0.035);
+  const col = sh => heatRGB(sh.s<0?avg:heat[sh.s]);
+  // faint body tint, drawn as one solid shape so overlapping joints don't show darker spots
+  lctx.fillStyle=lctx.strokeStyle=rgb(heatRGB(avg));
+  for(const sh of list) renderShape(lctx,sh,T,0);
+  ctx.globalAlpha=alpha*0.12; ctx.drawImage(layer,0,0); ctx.globalAlpha=1;
+  lctx.clearRect(0,0,W,H);
+  for(const sh of list){ const c=rgb(col(sh)); lctx.strokeStyle=lctx.fillStyle=c; lctx.shadowColor=c; lctx.shadowBlur=edge*6; renderShape(lctx,sh,T,edge); }
+  lctx.shadowBlur=0; lctx.globalCompositeOperation='destination-out'; lctx.strokeStyle=lctx.fillStyle='#000';
+  for(const sh of list) renderShape(lctx,sh,T,0);
+  lctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=alpha; ctx.drawImage(layer,0,0); ctx.globalAlpha=1;
+}
+function drawDancer(P, T){
+  ctx.save(); ctx.lineCap=ctx.lineJoin='round';
+  const g = ctx.createLinearGradient(0,T.y(-1.2),0,T.y(4)); g.addColorStop(0,'#3a4470'); g.addColorStop(1,'#1a1f3a');
+  ctx.strokeStyle=ctx.fillStyle=g;
+  for(const sh of shapes(P)) renderShape(ctx,sh,T,0);
+  ctx.restore();
+}
+
+/* ---------- scoring ---------- */
+const angleOf=(a,b)=>Math.atan2(b[0]-a[0], b[1]-a[1])*180/Math.PI;
+const wrap = d => { d=((d+180)%360+360)%360-180; return Math.abs(d); };
+const mirrorPose = a => [-a[2],-a[3],-a[0],-a[1],-a[6],-a[7],-a[4],-a[5]];
+function scoreAgainst(pts, vis, target, L){
+  const segs=[]; let sum=0, n=0, legsMissing=false;
+  SEGS.forEach(([p,q],i)=>{
+    if(vis[p]<0.5||vis[q]<0.5){ segs.push(0); if(i>=4) legsMissing=true; return; }
+    const d = wrap(angleOf(pts[p],pts[q]) - target[i]);
+    const s = d<=L.tol ? 1 : Math.max(0, 1-(d-L.tol)/40);
+    segs.push(s); sum+=s; n++;
+  });
+  const easyArmsOnly = L===LEVELS.easy && legsMissing && n>=4;
+  const match = easyArmsOnly ? sum/n : sum/8;
+  return {segs, match, legsMissing};
+}
+const swapLegs = a => [a[0],a[1],a[2],a[3],a[6],a[7],a[4],a[5]];
+const swapArms = a => [a[2],a[3],a[0],a[1],a[4],a[5],a[6],a[7]];
+function scorePose(pts, vis, pose, L){
+  if(pose.leap){
+    // side view leap: either direction, and the camera may mix up which leg or arm is in front
+    const LL = {...L, tol:L.leapTol}; let best=null;
+    for(const base of [pose.a, mirrorPose(pose.a)]) for(const v of [base, swapLegs(base), swapArms(base), swapArms(swapLegs(base))]){
+      const r=scoreAgainst(pts, vis, v, LL); if(!best||r.match>best.match) best=r; }
+    return best;
+  }
+  const a = scoreAgainst(pts, vis, pose.a, L);
+  if(L!==LEVELS.easy) return a;
+  const b = scoreAgainst(pts, vis, mirrorPose(pose.a), L);
+  return b.match>a.match ? b : a;
+}
+
+/* ---------- camera and pose detection ---------- */
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let landmarker=null, mode='none', rawLm=null, lastVT=-1, smooth=null, stream=null, facing=null, mirrored=true;
+// back camera is not mirrored, so the dancer's right side shows on screen left
+const LM_BACK = {ls:12, rs:11, le:14, re:13, lw:16, rw:15, lh:24, rh:23, lk:26, rk:25, la:28, ra:27, head:0};
+async function startCamera(want){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal: want==='back'?'environment':'user'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+  video.srcObject = stream; await video.play();
+  const s = stream.getVideoTracks()[0].getSettings();
+  // mirror anything that faces the dancer, like a studio mirror. Laptop webcams report no facingMode
+  // and always face the user, so only a real back camera is shown un-mirrored.
+  mirrored = s.facingMode ? s.facingMode!=='environment' : true;
+  facing = want; smooth=null; lastVT=-1;
+  if(landmarker){ mode='camera'; return; }
+  const vision = await import(MP);
+  const files = await vision.FilesetResolver.forVisionTasks(MP+'/wasm');
+  const opts = d => ({baseOptions:{modelAssetPath:MODEL, delegate:d}, runningMode:'VIDEO', numPoses:1});
+  try{ landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('GPU')); }
+  catch(e){ landmarker = await vision.PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  mode='camera';
+}
+function videoRect(){
+  const vw=video.videoWidth||1280, vh=video.videoHeight||720, s=Math.max(W/vw,H/vh);
+  const dw=vw*s, dh=vh*s; return {dx:(W-dw)/2, dy:(H-dh)/2, dw, dh};
+}
+function cameraPoints(now){
+  if(!landmarker||video.readyState<2) return null;
+  if(video.currentTime!==lastVT){ lastVT=video.currentTime; const r=landmarker.detectForVideo(video, now); rawLm = r.landmarks&&r.landmarks[0] || null; }
+  if(!rawLm){ smooth=null; return null; }
+  const R=videoRect(), pts={}, vis={};
+  const map = mirrored ? LM : LM_BACK;
+  for(const k in map){ const m=rawLm[map[k]]; pts[k]=[R.dx+(mirrored?1-m.x:m.x)*R.dw, R.dy+m.y*R.dh]; vis[k]=m.visibility??1; }
+  // judge by what the screen shows: the arm on the left of the screen is always matched to the
+  // outline's left arm, even if the tracker mixes up the dancer's left and right
+  const swap=(a,b)=>{ [pts[a],pts[b]]=[pts[b],pts[a]]; [vis[a],vis[b]]=[vis[b],vis[a]]; };
+  if(pts.ls[0]>pts.rs[0]){ swap('ls','rs'); swap('le','re'); swap('lw','rw'); }
+  if(pts.lh[0]>pts.rh[0]){ swap('lh','rh'); swap('lk','rk'); swap('la','ra'); }
+  if(smooth) for(const k in pts){ const s=smooth[k]; pts[k]=[s[0]*0.45+pts[k][0]*0.55, s[1]*0.45+pts[k][1]*0.55]; }
+  smooth=pts; return {pts, vis};
+}
+
+/* ---------- the outline follows the dancer, so nobody has to shuffle around to line up ----------
+   Its shoulders sit on the dancer's shoulders and it scales to their torso; only arms and legs need matching. */
+let follow=null;
+function followDancer(p, dt){
+  const {pts, vis}=p; if(Math.min(vis.ls,vis.rs,vis.lh,vis.rh)<0.5) return;
+  const sx=(pts.ls[0]+pts.rs[0])/2, sy=(pts.ls[1]+pts.rs[1])/2, hx=(pts.lh[0]+pts.rh[0])/2, hy=(pts.lh[1]+pts.rh[1])/2;
+  const u=Math.hypot(hx-sx, hy-sy)/G.torso; if(u<5) return;
+  const k = follow ? Math.min(1, dt*6) : 1; follow = follow || {ox:sx, oy:sy, u};
+  follow.ox+=(sx-follow.ox)*k; follow.oy+=(sy-follow.oy)*k; follow.u+=(u-follow.u)*k;
+  const f=follow; curT={u:f.u, x:v=>f.ox+f.u*v, y:v=>f.oy+f.u*v};
+}
+// small dots on the joints the camera sees, so the dancer knows they're being tracked
+function drawJoints(p){
+  ctx.fillStyle='rgba(255,255,255,.85)';
+  for(const k of ['ls','rs','le','re','lw','rw','lh','rh','lk','rk','la','ra']){
+    if(p.vis[k]<0.5) continue; ctx.beginPath(); ctx.arc(p.pts[k][0],p.pts[k][1],4*DPR,0,Math.PI*2); ctx.fill(); }
+}
+
+/* ---------- leap detection: both feet clearly above where the floor was ---------- */
+let floorY=null, torsoPx=0, inAir=false, leapPeak=0, capturePeak=false;
+function airborne(p, dt){
+  const {pts, vis}=p; if(vis.la<0.5||vis.ra<0.5) return false;
+  const low=Math.max(pts.la[1], pts.ra[1]);
+  const t=Math.hypot((pts.ls[0]+pts.rs[0]-pts.lh[0]-pts.rh[0])/2, (pts.ls[1]+pts.rs[1]-pts.lh[1]-pts.rh[1])/2);
+  torsoPx = torsoPx ? torsoPx+(t-torsoPx)*Math.min(1,dt*2) : t;
+  if(floorY===null || low>floorY) floorY=low;
+  const air = low < floorY - 0.35*torsoPx;
+  if(!air) floorY += (low-floorY)*Math.min(1,dt*0.5);
+  return air;
+}
+
+/* ---------- demo dancer (no camera, for testing and preview) ---------- */
+const demo = {cur:NEUTRAL.slice()};
+function demoPoints(dt, t){
+  let target = NEUTRAL;
+  if((state==='play'||state==='result') && round[idx]){
+    const good = idx%2===0 || idx===round.length-1, a=round[idx].a;
+    target = good ? a : a.map((v,i)=> i===0||i===1 ? v+75 : i===2||i===3 ? v-75 : v);
+  }
+  let k=Math.min(1, dt*(state==='play'?1.8:3)), xOff=0, yOff=0;
+  const T0 = curT || fitTransform(skeleton(NEUTRAL));
+  if(state==='play' && round[idx] && round[idx].leap){
+    // run in, leap for 0.65 s, land; repeats every 2.6 s
+    const c=st%2.6, air=c>1.0&&c<1.65, p=(c-1.0)/0.65;
+    if(!air) target=NEUTRAL; k=Math.min(1, dt*(air?14:6));
+    xOff=(c/2.6-0.5)*3; yOff= air ? -Math.sin(Math.PI*p)*1.4 : 0;
+  }
+  demo.cur = demo.cur.map((v,i)=>v+(target[i]-v)*k);
+  const shown = demo.cur.map((v,i)=>v+Math.sin(t*2.2+i)*2.5);
+  const P = skeleton(shown), T = {u:T0.u, x:v=>T0.x(v)+xOff*T0.u, y:v=>T0.y(v)+yOff*T0.u};
+  const pts={}, vis={};
+  for(const key in P){ pts[key]=[T.x(P[key][0]),T.y(P[key][1])]; vis[key]=1; }
+  return {pts, vis, P, T};
+}
+
+/* ---------- effects ---------- */
+let parts=[], frost=0, flash=0, banner=null;
+function burstFire(P,T,n){
+  for(let i=0;i<n;i++){ const [a,b]=SEGS[i%8], f=Math.random();
+    const x=T.x(P[a][0]+(P[b][0]-P[a][0])*f), y=T.y(P[a][1]+(P[b][1]-P[a][1])*f);
+    parts.push({k:'fire', x, y, vx:(Math.random()-.5)*120*DPR, vy:-(60+Math.random()*220)*DPR, life:0, max:.6+Math.random()*.7, r:(6+Math.random()*12)*DPR}); }
+}
+function burstIce(n){
+  for(let i=0;i<n;i++) parts.push({k:'ice', x:Math.random()*W, y:-20-Math.random()*H*0.4, vx:(Math.random()-.5)*40*DPR, vy:(80+Math.random()*160)*DPR,
+    life:0, max:2+Math.random()*1.5, r:(4+Math.random()*9)*DPR, rot:Math.random()*6});
+}
+function drawParts(dt){
+  parts = parts.filter(p=>(p.life+=dt)<p.max);
+  for(const p of parts){
+    p.x+=p.vx*dt; p.y+=p.vy*dt; const f=1-p.life/p.max;
+    if(p.k==='fire'){ ctx.globalCompositeOperation='lighter'; ctx.fillStyle=`hsla(${10+45*f},100%,${45+20*f}%,${f})`;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(0.4+f*0.6),0,7); ctx.fill(); ctx.globalCompositeOperation='source-over'; }
+    else { p.rot+=dt; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.strokeStyle=`rgba(225,245,255,${Math.min(1,f*1.5)})`; ctx.lineWidth=1.6*DPR;
+      ctx.beginPath(); for(let j=0;j<3;j++){ ctx.rotate(Math.PI/3); ctx.moveTo(-p.r,0); ctx.lineTo(p.r,0); } ctx.stroke(); ctx.restore(); }
+  }
+  if(frost>0){ frost=Math.max(0,frost-dt*0.45);
+    const g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.75);
+    g.addColorStop(0,`rgba(140,210,255,${0.12*frost})`); g.addColorStop(1,`rgba(200,240,255,${0.75*frost})`);
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
+  if(flash>0){ flash=Math.max(0,flash-dt*1.6); ctx.globalCompositeOperation='lighter'; ctx.fillStyle=`rgba(255,150,40,${0.35*flash})`; ctx.fillRect(0,0,W,H); ctx.globalCompositeOperation='source-over'; }
+}
+function text(t, x, y, size, color, font='800', align='center'){
+  ctx.font=`${font} ${size}px Outfit, sans-serif`; ctx.textAlign=align; ctx.textBaseline='middle';
+  ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=size*0.3; ctx.fillStyle=color; ctx.fillText(t,x,y); ctx.shadowBlur=0;
+}
+function drawBanner(dt){
+  if(!banner) return; banner.t+=dt; if(banner.t>1.7){ banner=null; return; }
+  const s = Math.min(1, banner.t*6), size=Math.min(W*0.11, 76*DPR)*(0.7+0.3*s);
+  text(banner.a, W/2, H*0.24, size, banner.c);
+  if(banner.b) text(banner.b, W/2, H*0.24+size*0.85, size*0.42, '#fff', '600');
+}
+function drawWatermark(){
+  const h=40*DPR, y=H-h;
+  const g=ctx.createLinearGradient(0,y,0,H); g.addColorStop(0,'rgba(5,6,12,0)'); g.addColorStop(1,'rgba(5,6,12,.85)');
+  ctx.fillStyle=g; ctx.fillRect(0,y-h*0.5,W,h*1.5);
+  ctx.font=`800 ${14*DPR}px Unbounded, sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='#3ff3ff';
+  ctx.fillText('Positions, Please!', 14*DPR, y+h*0.5);
+  ctx.font=`600 ${12*DPR}px Outfit, sans-serif`; ctx.textAlign='right'; ctx.fillStyle='#fff';
+  ctx.fillText(`Cadance Academy  ${CONFIG.handle}`, W-14*DPR, y+h*0.5);
+}
+
+/* ---------- music: a real licensed track from a file, plus small sound effects ---------- */
+const Music = (()=>{
+  let ac=null, master=null, on=store.get('music', true), track=null;
+  const f=m=>440*Math.pow(2,(m-69)/12);
+  function ensure(){ if(ac) return; ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=on?0.5:0; master.connect(ac.destination); }
+  function env(g,t,a,peak,d){ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(peak,t+a); g.gain.exponentialRampToValueAtTime(0.0001,t+d); }
+  function bell(m,t,vol=0.18){ [1,2.01,3.98].forEach((h,i)=>{ const o=ac.createOscillator(), g=ac.createGain(); o.type='sine'; o.frequency.value=f(m)*h; env(g,t,0.005,vol/(i*2+1),0.9/(i+1)); o.connect(g).connect(master); o.start(t); o.stop(t+1); }); }
+  let noiseBuf=null;
+  function noise(t,dur,hp,vol,bp){ if(!noiseBuf){ noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; }
+    const s=ac.createBufferSource(), fl=ac.createBiquadFilter(), g=ac.createGain(); s.buffer=noiseBuf; fl.type=bp?'bandpass':'highpass'; fl.frequency.value=hp; env(g,t,0.002,vol,dur); s.connect(fl).connect(g).connect(master); s.start(t); s.stop(t+dur+0.05); }
+  let current=null;
+  return {
+    start(){ ensure(); if(ac.state==='suspended') ac.resume(); },
+    // switch to a track key from CONFIG.tracks, or 'none'
+    use(key){ ensure(); if(key===current) { if(on && track && track.paused) track.play().catch(()=>{}); return; }
+      current=key; if(track){ track.pause(); track=null; }
+      const t=CONFIG.tracks[key]; if(!t) return;
+      track=new Audio(t.file); track.loop=true; track.volume=CONFIG.musicVolume;
+      if(on) track.play().catch(()=>{}); },
+    stop(){ if(track) track.pause(); },
+    toggle(){ on=!on; store.set('music',on); if(master) master.gain.value=on?0.5:0; if(track){ on?track.play().catch(()=>{}):track.pause(); } return on; },
+    get playing(){ return !!track && !track.paused; },
+    // short tone for the "getting closer" feedback; plays even when music is muted
+    beep(fr){ if(!ac) return; const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='sine'; o.frequency.value=fr; env(g,t,0.005,0.16,0.12); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+0.15); },
+    duck(d){ if(track) track.volume = d ? CONFIG.musicVolume*0.3 : CONFIG.musicVolume; },
+    get on(){ return on; },
+    sfx(kind){ if(!ac||!on) return; const t=ac.currentTime;
+      if(kind==='hot'){ [79,83,86,91,95].forEach((m,i)=>bell(m,t+i*0.06,0.25)); noise(t,0.5,800,0.25); }
+      else if(kind==='good'){ [76,79,83].forEach((m,i)=>bell(m,t+i*0.07,0.2)); }
+      else { const o=ac.createOscillator(), g=ac.createGain(); o.type='triangle'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(120,t+0.7); env(g,t,0.01,0.25,0.8); o.connect(g).connect(master); o.start(t); o.stop(t+0.9); noise(t,0.6,4000,0.12); } },
+  };
+})();
+
+/* ---------- sharing permission ---------- */
+const under13 = () => profile.age==='4-7' || profile.age==='8-12';
+function shareState(){ if(parent.sharing==='deny') return 'off'; if(under13() && parent.sharing!=='allow') return 'locked'; return 'ok'; }
+
+/* ---------- recording ---------- */
+const recMime = (()=>{ if(!window.MediaRecorder) return null;
+  for(const m of ['video/mp4;codecs=avc3','video/webm;codecs=vp9','video/webm','video/mp4']) if(MediaRecorder.isTypeSupported(m)) return m; return null; })();
+let rec=null, recChunks=[], canvasStream=null;
+function startClip(){
+  if(!recMime || shareState()==='off') return;
+  try{ canvasStream = canvasStream || cv.captureStream(30); recChunks=[]; rec=new MediaRecorder(canvasStream,{mimeType:recMime, videoBitsPerSecond:2_500_000});
+    rec.ondataavailable=e=>e.data.size&&recChunks.push(e.data); rec.start(); }catch(e){ rec=null; }
+}
+function stopClip(keep, label){
+  if(!rec) return; const r=rec; rec=null;
+  r.onstop=()=>{ if(keep && recChunks.length){ const blob=new Blob(recChunks,{type:recMime.split(';')[0]}); moments.push({type:'clip', kind:'blooper', blob, label, url:URL.createObjectURL(blob)}); } };
+  try{ r.stop(); }catch(e){}
+}
+function snapshot(label, src=cv){
+  if(shareState()==='off') return;
+  src.toBlob(b=>{ if(b) moments.push({type:'snap', kind:'perfect', blob:b, label, url:URL.createObjectURL(b)}); }, 'image/jpeg', 0.9);
+}
+
+/* ---------- game state ---------- */
+let state='menu', round=[], idx=0, score=0, perfects=0, goods=0, st=0, timeLeft=0, hold=0, holdAvg=0;
+let heat=new Array(8).fill(0), curT=null, curP=null, moments=[], L=LEVELS.easy, calibOk=0, calibT=0, attractI=0, attractT=0, snapDone=false, clipDone=false, lastResult=null;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildRound(){
+  const nut=shuffle(POSES.filter(p=>p.g==='nut')), other=shuffle(POSES.filter(p=>p.g==='ballet'||p.g==='fun')), adv=shuffle(POSES.filter(p=>p.g==='adv'));
+  const leaps = profile.difficulty==='master' ? [LEAP] : [];
+  const n=CONFIG.posesPerRound-1-leaps.length, a=ADV_PER_ROUND[profile.difficulty]||0, rest=n-a, k=Math.ceil(rest/2);
+  return [...shuffle([...adv.slice(0,a), ...nut.slice(0,k), ...other.slice(0,rest-k)]), ...leaps, FINALE];
+}
+/* ---------- voice: on in "a friend films me" mode, so the dancer can play without seeing the screen ---------- */
+const Voice = {
+  on:false,
+  say(t, interrupt=true){ if(!this.on || !window.speechSynthesis) return;
+    if(interrupt) speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(t); u.rate=1.05; u.lang='en-CA';
+    u.onstart=()=>Music.duck(true); u.onend=u.onerror=()=>Music.duck(false);
+    speechSynthesis.speak(u); },
+  prime(){ try{ speechSynthesis.speak(new SpeechSynthesisUtterance('')); }catch(e){} }, // phones only allow speech after a tap
+};
+const introTime = () => Voice.on ? 3.4 : 1.6;
+let beepT=0;
+function setPose(i){ idx=i; curP=skeleton(round[i].a); if(!(mode==='camera' && follow)) curT=fitTransform(curP); heat.fill(0);
+  Voice.say(`${round[i].name}. ${round[i].cue}`); }
+function startRound(){
+  round=buildRound(); score=0; perfects=0; goods=0; moments.forEach(m=>URL.revokeObjectURL(m.url)); moments=[];
+  setPose(0); state='intro'; st=0; $('hud').hidden=false; $('calib').hidden=true; updateHud();
+}
+let timeTotal=0;
+function beginPlay(){ state='play'; st=0; timeTotal=timeLeft = round[idx].leap ? L.leapTime : L.time; floorY=null; inAir=false; leapPeak=0; hold=0; holdAvg=L.pass; snapDone=false; clipDone=false; beepT=0.4; startClip(); Voice.say(round[idx].leap ? 'Go! Leap!' : 'Go!', false); }
+function finishPose(kind){
+  state='result'; st=0; lastResult=kind; $('hold').style.opacity=0;
+  const name=round[idx].name;
+  if(kind==='perfect'){ const pts=1000+Math.round(timeLeft*100); score+=pts; perfects++; heat.fill(1); flash=1; burstFire(curP,curT,240);
+    banner={a:'🔥 Flaming hot!', b:`${name}  +${pts}`, c:'#ffcc4d', t:0}; Music.sfx('hot'); }
+  else if(kind==='good'){ const pts=500+Math.round(timeLeft*50); score+=pts; goods++; burstFire(curP,curT,60);
+    banner={a:'Nice!', b:`${name}  +${pts}`, c:'#ffb36b', t:0}; Music.sfx('good'); }
+  else { heat.fill(0); frost=1; burstIce(140); banner={a:'🧊 Ice cold!', b:'Shake it off, next pose!', c:'#bfeaff', t:0}; Music.sfx('cold'); }
+  Voice.say(kind==='perfect' ? 'Flaming hot!' : kind==='good' ? 'Nice!' : 'Ice cold! Shake it off.');
+  updateHud();
+}
+function updateHud(){
+  $('h-score').textContent=score.toLocaleString();
+  $('h-count').textContent = round.length ? `${Math.min(idx+1,round.length)} / ${round.length}` : '';
+  $('b-mute').textContent = Music.on ? '🎵' : '🔇';
+}
+
+/* ---------- main loop ---------- */
+let last=performance.now(), clock=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.05,(now-last)/1000); last=now; clock+=dt;
+  // background
+  if(mode==='camera' && video.readyState>=2){
+    const R=videoRect(); ctx.save(); if(mirrored){ ctx.translate(W,0); ctx.scale(-1,1); } ctx.drawImage(video,R.dx,R.dy,R.dw,R.dh); ctx.restore();
+    ctx.fillStyle='rgba(5,6,12,.15)'; ctx.fillRect(0,0,W,H);
+  } else {
+    // dark studio with a neon perspective floor grid
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#05060c'); g.addColorStop(0.7,'#0b0f22'); g.addColorStop(1,'#140a1e');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const hz=H*0.72; ctx.lineWidth=1*DPR;
+    for(let i=-10;i<=10;i++){ ctx.strokeStyle=`rgba(63,243,255,${0.18-Math.abs(i)*0.012})`; ctx.beginPath(); ctx.moveTo(W/2+i*W*0.02,hz); ctx.lineTo(W/2+i*W*0.22,H); ctx.stroke(); }
+    for(let j=0;j<8;j++){ const y=hz+(H-hz)*Math.pow(((j+(clock*0.4)%1))/8,2); ctx.strokeStyle=`rgba(255,46,136,${0.05+0.12*(y-hz)/(H-hz)})`; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+  // player
+  let player=null;
+  if(mode==='camera') player=cameraPoints(now);
+  else if(mode==='demo'){ player=demoPoints(dt, clock); }
+
+  if(state==='menu'||state==='end'){
+    attractT+=dt; if(attractT>2.6){ attractT=0; attractI=(attractI+1)%POSES.length; }
+    const P=skeleton(POSES[attractI].a), T=fitTransform(P), pulse=(Math.sin(clock*1.6)+1)/2;
+    drawOutline(P,T,new Array(8).fill(pulse),0.55);
+    drawParts(dt); return;
+  }
+  if(state==='calib'){
+    const need=['ls','rs','lh','rh','lk','rk','la','ra'];
+    const ok = player && need.every(k=>player.vis[k]>0.5 && player.pts[k][1]>0 && player.pts[k][1]<H);
+    calibOk = ok ? calibOk+dt : Math.max(0,calibOk-dt); calibT+=dt;
+    $('calib-bar').style.width = Math.min(100,calibOk/1.2*100)+'%';
+    if(calibT>6) $('b-skip').hidden=false;
+    if(player){ followDancer(player, dt); drawJoints(player); }
+    const P=skeleton(NEUTRAL), T=follow?curT:fitTransform(P); drawOutline(P,T,new Array(8).fill(ok?0.6:0),0.6);
+    if(calibOk>=1.2) startRound();
+    return;
+  }
+  if(mode==='demo' && player) drawDancer(player.P, player.T);
+  if(mode==='camera' && player){ followDancer(player, dt); drawJoints(player); }
+
+  const pose=round[idx];
+  if(state==='intro'){
+    st+=dt; drawOutline(curP,curT,heat,Math.min(1,st*2));
+    text('Next pose', W/2, H*0.13, 18*DPR, '#93a0c8', '600');
+    text(pose.name, W/2, H*0.13+34*DPR, Math.min(W*0.09, 46*DPR), '#fff');
+    text(pose.cue, W/2, H*0.13+70*DPR, 16*DPR, '#e6ecff', '600');
+    if(Voice.on) text(`Starts in ${Math.max(1,Math.ceil(introTime()-st))}`, W/2, H*0.13+104*DPR, 16*DPR, '#3ff3ff', '600');
+    if(st>introTime()) beginPlay();
+  }
+  else if(state==='play'){
+    st+=dt; timeLeft-=dt;
+    let match=0;
+    if(player){ const r=scorePose(player.pts, player.vis, pose, L); match=r.match;
+      r.segs.forEach((s,i)=>heat[i]+=(s-heat[i])*Math.min(1,dt*8));
+      $('hint').textContent = r.legsMissing ? 'Step back so we can see your feet' : '';
+    } else { heat.forEach((v,i)=>heat[i]=v*(1-Math.min(1,dt*4))); $('hint').textContent='We can\'t see you. Step into the outline!'; }
+    if(pose.leap){
+      const air = player && airborne(player, dt);
+      if(air){ if(!inAir){ inAir=true; leapPeak=0; } if(match>leapPeak){ leapPeak=match; capturePeak=true; } $('hint').textContent='In the air!'; }
+      else if(inAir){ inAir=false;
+        if(leapPeak>=L.leapPerfect){ finishPose('perfect'); }
+        else if(leapPeak>=L.leapPass){ finishPose('good'); }
+        else { banner={a:'So close!', b:'Leap again!', c:'#bfeaff', t:0}; Voice.say('So close! Leap again!'); }
+      }
+      else if(!$('hint').textContent || $('hint').textContent==='In the air!') $('hint').textContent='Run and leap through the outline!';
+      if(state==='play' && timeLeft<=0 && !inAir) finishPose('miss');
+    }
+    else if(match>=L.pass){ hold+=dt; holdAvg += (match-holdAvg)*Math.min(1,dt*4); if(Math.random()<0.6) burstFire(curP,curT,2); }
+    else { hold=Math.max(0,hold-dt*2); if(hold===0) holdAvg=L.pass; }
+    // friend mode: beeps get higher and faster as the dancer gets closer, like a parking sensor
+    if(Voice.on && player && match>0.15 && state==='play'){ beepT-=dt; if(beepT<=0){ Music.beep(330+700*match); beepT=0.6-0.48*match; } }
+    drawOutline(curP,curT,heat,1);
+    text(pose.name, W/2, H*0.1, Math.min(W*0.07, 32*DPR), '#fff');
+    $('timer').firstElementChild.style.transform=`scaleX(${Math.max(0,timeLeft/timeTotal)})`;
+    const th=$('thermo').firstElementChild; th.style.height=(match*100)+'%'; th.style.background=rgb(heatRGB(match));
+    $('hold').style.opacity = hold>0 ? 1 : 0; $('hold').style.setProperty('--p', Math.min(1,hold/L.hold));
+    // a clean hold scores flaming hot; a shaky one keeps going a bit longer for a chance at perfect
+    if(!pose.leap){
+      if(hold>=L.hold && holdAvg>=L.perfect) finishPose('perfect');
+      else if(hold>=L.hold*2 || (hold>=L.hold && timeLeft<0.4)) finishPose('good');
+      else if(timeLeft<=0) finishPose('miss');
+    }
+  }
+  else if(state==='result'){
+    st+=dt; drawOutline(curP,curT,heat,Math.max(0,1-st*0.4));
+    if(lastResult==='perfect' && !snapDone && st>0.3){ snapDone=true;
+      if(pose.leap) snapshot(pose.name, peakCv); // the frame where the leap was closest to the outline
+      else { drawParts(0); drawBanner(0); drawWatermark(); snapshot(pose.name); } }
+    if(!clipDone && st>1.1){ clipDone=true; stopClip(lastResult==='miss', pose.name); }
+    if(st>1.9){ $('hint').textContent=''; if(idx+1<round.length){ setPose(idx+1); state='intro'; st=0; updateHud(); } else endGame(); }
+  }
+  drawParts(dt); drawBanner(dt); drawWatermark();
+  if(capturePeak){ capturePeak=false; peakCtx.clearRect(0,0,W,H); peakCtx.drawImage(cv,0,0); }
+}
+requestAnimationFrame(frame);
+
+/* ---------- end screen ---------- */
+function endGame(){
+  state='end'; $('hud').hidden=true; stopClip(false);
+  $('e-score').textContent=score.toLocaleString();
+  $('e-stats').textContent=`${perfects} flaming hot, ${goods} nice, ${round.length-perfects-goods} ice cold`;
+  const cta=$('b-cta');
+  if(profile.student){
+    cta.textContent='Invite a friend to dance'; cta.href=CONFIG.friendUrl;
+    $('e-note').textContent = profile.wasGuest ? 'Welcome to the Cadance family! Thanks for dancing with us.' : 'Your friend can try a free week of classes at Cadance.';
+  } else {
+    cta.textContent='Book a free trial class'; cta.href=CONFIG.trialUrl;
+    $('e-note').textContent='Loved it? Come try a real class at Cadance Academy.';
+  }
+  setTimeout(renderMoments, 400); // let the last clip finish saving
+  show('s-end');
+}
+function renderMoments(){
+  const box=$('moments'); box.innerHTML='';
+  const ss=shareState();
+  moments.forEach((m,i)=>{
+    const b=document.createElement('button'); b.className='moment '+(m.kind==='perfect'?'hot':'cold');
+    b.innerHTML = (m.type==='snap' ? `<img src="${m.url}" alt="">` : `<video src="${m.url}" muted loop autoplay playsinline></video>`) + `<b>${m.kind==='perfect'?'🔥 Perfect':'🧊 Blooper'}</b>`;
+    b.onclick=()=>openViewer(i); box.appendChild(b);
+  });
+  $('share-note').textContent = !moments.length ? '' :
+    ss==='off' ? 'Sharing is turned off on this device.' :
+    ss==='locked' ? 'Ask a parent to turn on sharing so you can post your moments.' : 'Tap a moment to share it or save it.';
+}
+let viewing=null;
+function openViewer(i){
+  viewing=moments[i]; const ss=shareState();
+  $('v-media').innerHTML = viewing.type==='snap' ? `<img src="${viewing.url}" alt="">` : `<video src="${viewing.url}" controls autoplay loop playsinline></video>`;
+  $('v-actions').hidden = ss==='off';
+  $('v-share').textContent = ss==='locked' ? '🔒 Ask a parent' : 'Share';
+  $('v-save').hidden = ss!=='ok';
+  $('v-note').textContent = ss==='off' ? 'Sharing is turned off on this device.' : '';
+  $('viewer').hidden=false;
+}
+function momentFile(m){
+  const ext = m.type==='snap' ? 'jpg' : (m.blob.type.includes('mp4')?'mp4':'webm');
+  return new File([m.blob], `positions-please-${m.kind}.${ext}`, {type:m.blob.type});
+}
+function saveFile(file){ const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+$('v-share').onclick=async()=>{
+  if(shareState()==='locked'){ $('viewer').hidden=true; openGate(()=>{ renderMoments(); }); return; }
+  if(shareState()!=='ok') return;
+  const file=momentFile(viewing);
+  const msg = `${viewing.kind==='perfect'?'Flaming hot':'My blooper'} in Positions, Please! by Cadance Academy ${CONFIG.hashtag} ${CONFIG.handle}`;
+  if(navigator.canShare && navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file], text:msg}); }catch(e){} }
+  else saveFile(file);
+};
+$('v-save').onclick=()=>{ if(shareState()==='ok') saveFile(momentFile(viewing)); };
+$('v-close').onclick=()=>{ $('viewer').hidden=true; $('v-media').innerHTML=''; };
+
+/* ---------- parent gate ---------- */
+let gateAnswer=0, gateDone=null;
+function openGate(after){
+  gateDone=after||null; $('pg-err').textContent=''; $('pg-err2').textContent=''; $('pg-a').value='';
+  $('pg-check').hidden=false; $('pg-set').hidden=true;
+  if(parent.pin){ $('pg-q').textContent='Enter your parent PIN'; gateAnswer=null; }
+  else { const a=6+Math.floor(Math.random()*4), b=6+Math.floor(Math.random()*4); gateAnswer=a*b; $('pg-q').textContent=`Grown ups only: what is ${a} × ${b}?`; }
+  $('pgate').hidden=false; setTimeout(()=>$('pg-a').focus(),50);
+}
+$('pg-go').onclick=()=>{
+  const v=$('pg-a').value.trim();
+  const ok = parent.pin ? v===parent.pin : Number(v)===gateAnswer;
+  if(!ok){ $('pg-err').textContent='That is not right. Please ask a parent.'; return; }
+  $('pg-check').hidden=true; $('pg-set').hidden=false; $('pg-pin').value=parent.pin||'';
+  document.querySelectorAll('input[name=pgs]').forEach(r=>r.checked = r.value===(parent.sharing||'allow'));
+};
+$('pg-save').onclick=()=>{
+  const pin=$('pg-pin').value.trim();
+  if(pin && !/^\d{4}$/.test(pin)){ $('pg-err2').textContent='The PIN needs 4 numbers.'; return; }
+  const sel=document.querySelector('input[name=pgs]:checked');
+  parent={sharing: sel?sel.value:'allow', pin: pin||null}; store.set('parent',parent);
+  $('pgate').hidden=true; if(gateDone) gateDone();
+};
+$('pg-close').onclick=()=>{ $('pgate').hidden=true; };
+$('b-parent').onclick=()=>openGate();
+
+/* ---------- setup screen ---------- */
+const levelBox=document.querySelector('[data-key=level]');
+CADANCE_LEVELS.forEach(l=>{ const b=document.createElement('button'); b.className='chip'; b.dataset.v=l; b.textContent=l; levelBox.appendChild(b); });
+const pick={age:profile.age, student:profile.student===undefined?undefined:(profile.student?'yes':'no'), level:profile.level, ballet:profile.ballet, difficulty:profile.difficulty, cam:profile.cam||'selfie', sex:profile.sex||'f', music:profile.music||'royal'};
+let diffTouched=false;
+function suggestDifficulty(){
+  if(pick.age==='4-7') return 'easy';
+  if(pick.student==='yes' && pick.level){ const i=CADANCE_LEVELS.indexOf(pick.level); return i<=2?'easy':i<=5?'medium':i<=7?'hard':'expert'; }
+  if(pick.student==='no' && pick.ballet) return {none:'easy',beginner:'easy',intermediate:'medium',advanced:'hard'}[pick.ballet];
+  return null;
+}
+function paintSetup(){
+  document.querySelectorAll('#s-setup .chips').forEach(box=>{
+    const key=box.dataset.key; box.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', pick[key]===c.dataset.v));
+  });
+  $('q-level').hidden = pick.student!=='yes'; $('q-ballet').hidden = pick.student!=='no'; $('cam-tip').hidden = pick.cam!=='back';
+  const sug=suggestDifficulty();
+  document.querySelectorAll('[data-key=difficulty] .chip').forEach(c=>c.classList.toggle('suggest', c.dataset.v===sug));
+  const ready = pick.age && pick.student && pick.difficulty && (pick.student==='yes'?pick.level:pick.ballet);
+  $('b-start').disabled=!ready;
+}
+document.querySelectorAll('#s-setup .chips').forEach(box=>box.addEventListener('click',e=>{
+  const c=e.target.closest('.chip'); if(!c) return; pick[box.dataset.key]=c.dataset.v;
+  if(box.dataset.key==='music') Music.use(pick.music); // tapping a track previews it
+  if(box.dataset.key==='difficulty') diffTouched=true;
+  else if(!diffTouched){ const s=suggestDifficulty(); if(s) pick.difficulty=s; }
+  paintSetup();
+}));
+$('b-play').onclick=()=>{ Music.start(); show('s-setup'); paintSetup(); };
+$('b-back').onclick=()=>show('s-start');
+$('b-start').onclick=async()=>{
+  // remember players who first played as non students, so a future student promo can welcome them
+  const everGuest = !!profile.everGuest || pick.student==='no';
+  profile={age:pick.age, student:pick.student==='yes', level:pick.student==='yes'?pick.level:null, ballet:pick.student==='no'?pick.ballet:null, difficulty:pick.difficulty, cam:pick.cam, sex:pick.sex, music:pick.music,
+    everGuest, wasGuest: pick.student==='yes' && everGuest};
+  store.set('profile',profile); L=LEVELS[profile.difficulty]; sex=profile.sex; Music.use(profile.music);
+  Voice.on = profile.cam==='back'; Voice.prime();
+  $('s-setup').hidden=true;
+  if(new URLSearchParams(location.search).has('demo')) mode='demo';
+  if(mode!=='demo' && (mode!=='camera' || facing!==profile.cam)){
+    { $('calib').hidden=false; $('calib').querySelector('p').innerHTML='<b>Warming up the stage...</b><br>Allow the camera when your device asks.';
+      try{ await startCamera(profile.cam); }
+      catch(e){ $('calib').querySelector('p').innerHTML='<b>We could not open the camera.</b><br>Check camera permission, or try the demo dancer.';
+        $('b-skip').textContent='Try the demo dancer'; $('b-skip').hidden=false; $('b-skip').onclick=()=>{ mode='demo'; $('calib').hidden=true; startRound(); }; return; }
+    }
+  }
+  if(mode==='demo'){ startRound(); return; }
+  $('calib').querySelector('p').innerHTML = profile.cam==='back'
+    ? '<b>Friend, point the camera at the dancer</b><br>and step back until they fit from head to toe.'
+    : '<b>Prop up your phone and step back</b><br>until we can see you from head to toe.';
+  $('b-skip').textContent='Start anyway'; $('b-skip').hidden=true; $('b-skip').onclick=()=>startRound();
+  $('calib').hidden=false; calibOk=0; calibT=0; state='calib';
+};
+$('b-mute').onclick=()=>{ Music.toggle(); updateHud(); };
+$('b-again').onclick=()=>{ show(null); $('s-end').hidden=true; if(mode==='camera'){ state='calib'; calibOk=1.2; } else startRound(); };
+$('b-home').onclick=()=>{ show('s-start'); };
+</script>
+</body>
+</html>

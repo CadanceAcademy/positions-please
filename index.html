@@ -88,7 +88,7 @@ h2{font-size:28px;margin:0 0 14px}
 <video id="cam" playsinline muted></video>
 
 <div id="hud" hidden>
-  <div class="hud-top"><button id="b-mute" aria-label="Music on or off">🎵</button><span id="h-count"></span><span id="h-score">0</span></div>
+  <div class="hud-top"><span><button id="b-pause" aria-label="Pause">⏸</button> <button id="b-mute" aria-label="Music on or off">🎵</button></span><span id="h-count"></span><span id="h-score">0</span></div>
   <div id="timer"><i></i></div>
   <div id="thermo"><i></i></div>
   <div id="hold"><span>Hold it!</span></div>
@@ -152,6 +152,13 @@ h2{font-size:28px;margin:0 0 14px}
   <button id="b-again" class="btn">Play again</button>
   <button id="b-home" class="link">Home</button>
 </section>
+
+<div class="modal" id="paused" hidden><div class="sheet">
+  <h3>Paused</h3>
+  <button id="p-resume" class="btn primary">Resume</button><br>
+  <button id="p-restart" class="btn">Restart</button>
+  <button id="p-quit" class="btn">Quit</button>
+</div></div>
 
 <div class="modal" id="viewer" hidden><div class="sheet">
   <div id="v-media"></div>
@@ -643,6 +650,7 @@ function updateHud(){
 let last=performance.now(), clock=0;
 function frame(now){
   requestAnimationFrame(frame);
+  if(paused){ last=now; return; } // freeze the picture and every timer while paused
   const dt=Math.min(0.05,(now-last)/1000); last=now; clock+=dt;
   // background
   if(mode==='camera' && video.readyState>=2){
@@ -872,7 +880,25 @@ $('b-start').onclick=async()=>{
 };
 $('b-mute').onclick=()=>{ Music.toggle(); updateHud(); };
 $('b-again').onclick=()=>{ show(null); $('s-end').hidden=true; if(mode==='camera'){ state='calib'; calibOk=1.2; } else startRound(); };
-$('b-home').onclick=()=>{ show('s-start'); };
+$('b-home').onclick=()=>quitToHome();
+
+/* ---------- pause, restart, quit ---------- */
+let paused=false;
+const inGame = () => ['calib','intro','play','result'].includes(state);
+function pauseGame(){ if(!inGame() || paused) return; paused=true; Music.stop(); try{ speechSynthesis.cancel(); }catch(e){} $('paused').hidden=false; }
+function resumeGame(){ paused=false; $('paused').hidden=true; Music.use(profile.music); }
+function stopCamera(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } if(mode==='camera') mode='none'; facing=null; follow=null; smooth=null; }
+function quitToHome(){
+  paused=false; $('paused').hidden=true; stopClip(false); Music.stop(); try{ speechSynthesis.cancel(); }catch(e){}
+  stopCamera(); state='menu'; $('hud').hidden=true; $('calib').hidden=true; $('hint').textContent='';
+  parts=[]; frost=0; flash=0; banner=null; show('s-start');
+}
+$('b-pause').onclick=pauseGame;
+$('p-resume').onclick=resumeGame;
+$('p-restart').onclick=()=>{ stopClip(false); paused=false; $('paused').hidden=true; Music.use(profile.music); startRound(); };
+$('p-quit').onclick=quitToHome;
+// locking the phone or switching apps pauses the game and the music
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) return; if(inGame()) pauseGame(); else Music.stop(); });
 </script>
 </body>
 </html>

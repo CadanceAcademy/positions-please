@@ -580,16 +580,65 @@ const Music = (()=>{
 const under13 = () => profile.age==='4-7' || profile.age==='8-12';
 function shareState(){ if(parent.sharing==='deny') return 'off'; if(under13() && parent.sharing!=='allow') return 'locked'; return 'ok'; }
 
-/* ---------- recording ---------- */
+/* ---------- recording ----------
+   Clips are encoded frame by frame into a standard H.264 MP4 (WebCodecs + mp4-muxer), the format
+   Photos, Messages and Instagram all play. The browser's MediaRecorder made WebM on iPhones and
+   fragmented MP4 on Android, which most apps can't open, so it is only a fallback now. */
+const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.mjs';
+let muxLib=null; const canEncode = 'VideoEncoder' in window && 'VideoFrame' in window;
+if(canEncode) import(MUXER_URL).then(m=>{ muxLib=m; }).catch(()=>{});
+const recCv=document.createElement('canvas'), recCtx=recCv.getContext('2d');
+let clip=null, clipToken=0;
+async function startClip(){
+  if(shareState()==='off') return;
+  const my=++clipToken;
+  if(canEncode && muxLib){
+    try{
+      const s=Math.min(1, 1280/Math.max(W,H)), rw=Math.round(W*s/2)*2, rh=Math.round(H*s/2)*2;
+      let cfg=null;
+      for(const codec of ['avc1.42002a','avc1.420028','avc1.42001f']){ // H.264 baseline, most compatible
+        const c={codec, width:rw, height:rh, bitrate:3_000_000, framerate:30, avc:{format:'avc'}};
+        if((await VideoEncoder.isConfigSupported(c)).supported){ cfg=c; break; } }
+      if(!cfg) throw new Error('no h264');
+      if(my!==clipToken) return; // stopped while we were setting up
+      recCv.width=rw; recCv.height=rh;
+      const target=new muxLib.ArrayBufferTarget();
+      const muxer=new muxLib.Muxer({target, video:{codec:'avc', width:rw, height:rh}, fastStart:'in-memory', firstTimestampBehavior:'offset'});
+      const enc=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta), error:()=>{}});
+      enc.configure(cfg);
+      clip={enc, muxer, target, t0:performance.now(), n:0, next:0};
+      return;
+    }catch(e){ clip=null; }
+  }
+  startMediaRecorder();
+}
+function clipFrame(now){ // called once per animation frame, after everything is drawn
+  if(!clip) return; const t=now-clip.t0; if(t<clip.next) return; clip.next=t+1000/30;
+  if(clip.enc.encodeQueueSize>6) return; // slow phone: skip a frame rather than fall behind
+  recCtx.drawImage(cv,0,0,recCv.width,recCv.height);
+  const f=new VideoFrame(recCv,{timestamp:Math.round(t*1000)});
+  clip.enc.encode(f,{keyFrame: clip.n%30===0}); f.close(); clip.n++;
+}
+function stopClip(keep, label){
+  clipToken++;
+  if(clip){ const c=clip; clip=null;
+    if(!keep || c.n<5){ try{ c.enc.close(); }catch(e){} return; }
+    c.enc.flush().then(()=>{ c.muxer.finalize(); c.enc.close();
+      const blob=new Blob([c.target.buffer],{type:'video/mp4'});
+      moments.push({type:'clip', kind:'blooper', blob, label, url:URL.createObjectURL(blob)}); }).catch(()=>{});
+    return; }
+  stopMediaRecorder(keep, label);
+}
+// fallback for browsers without WebCodecs
 const recMime = (()=>{ if(!window.MediaRecorder) return null;
-  for(const m of ['video/mp4;codecs=avc3','video/webm;codecs=vp9','video/webm','video/mp4']) if(MediaRecorder.isTypeSupported(m)) return m; return null; })();
+  for(const m of ['video/mp4;codecs=avc1','video/mp4','video/webm']) if(MediaRecorder.isTypeSupported(m)) return m; return null; })();
 let rec=null, recChunks=[], canvasStream=null;
-function startClip(){
-  if(!recMime || shareState()==='off') return;
+function startMediaRecorder(){
+  if(!recMime) return;
   try{ canvasStream = canvasStream || cv.captureStream(30); recChunks=[]; rec=new MediaRecorder(canvasStream,{mimeType:recMime, videoBitsPerSecond:2_500_000});
     rec.ondataavailable=e=>e.data.size&&recChunks.push(e.data); rec.start(); }catch(e){ rec=null; }
 }
-function stopClip(keep, label){
+function stopMediaRecorder(keep, label){
   if(!rec) return; const r=rec; rec=null;
   r.onstop=()=>{ if(keep && recChunks.length){ const blob=new Blob(recChunks,{type:recMime.split(';')[0]}); moments.push({type:'clip', kind:'blooper', blob, label, url:URL.createObjectURL(blob)}); } };
   try{ r.stop(); }catch(e){}
@@ -742,6 +791,7 @@ function frame(now){
   }
   drawParts(dt); drawBanner(dt); drawWatermark();
   if(capturePeak){ capturePeak=false; peakCtx.clearRect(0,0,W,H); peakCtx.drawImage(cv,0,0); }
+  clipFrame(now);
 }
 requestAnimationFrame(frame);
 
